@@ -59,6 +59,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 #include "system_config.h"
 #include "system_definitions.h"
 
+
 // DOM-IGNORE-BEGIN
 #ifdef __cplusplus  // Provide C++ Compatibility
 
@@ -69,7 +70,7 @@ extern "C" {
 
 // *****************************************************************************
 // *****************************************************************************
-// Section: Type Definitions
+// Section: Type Definitions  
 // *****************************************************************************
 // *****************************************************************************
 
@@ -83,12 +84,16 @@ extern "C" {
     This enumeration defines the valid application states.  These states
     determine the behavior of the application at various times.
 */
+//#define Numer_of_LEDs   8
+//#define Couleurs_LEDs   3
+//#define Datas_LEDs      8    
 
 typedef enum
 {
 	/* Application's state machine's initial state. */
 	APP_STATE_INIT=0,
 	APP_STATE_SERVICE_TASKS,
+    APP_STATE_WAIT,
 
 	/* TODO: Define states used by the application state machine. */
 
@@ -198,6 +203,10 @@ void APP_Initialize ( void );
 
 void APP_Tasks( void );
 
+
+void UpdateAppState(APP_STATES newState);
+
+//void SendDataLed(uint8_t Data_LED[Numer_of_LEDs][Couleurs_LEDs][Datas_LEDs]);
 
 #endif /* _APP_H */
 

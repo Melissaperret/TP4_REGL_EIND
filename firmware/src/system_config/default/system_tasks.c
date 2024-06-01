@@ -74,6 +74,7 @@ void SYS_Tasks ( void )
     /* Maintain system services */
 
     /* Maintain Device Drivers */
+    DRV_I2C_Tasks(sysObj.drvI2C0);
 
     /* Maintain Middleware & Other Libraries */
 

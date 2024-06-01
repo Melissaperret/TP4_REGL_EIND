@@ -54,7 +54,8 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 // *****************************************************************************
 
 #include "app.h"
-
+#include "Mc32DriverAdc.h"
+#include "Mc32DriverAdc.h"
 // *****************************************************************************
 // *****************************************************************************
 // Section: Global Data Definitions
@@ -111,6 +112,49 @@ APP_DATA appData;
   Remarks:
     See prototype in app.h.
  */
+#define Courant_Max 0.8
+#define Time_Overcurent_Wait 0x35B60
+
+//Variable globale 
+
+//mesures pour adc 
+float Tension = 0;
+float Courant = 0;
+float Tension_Mem [3];
+
+//atente pour adc
+uint32_t Temps_ADC = 22;
+S_ADCResults Value_ADC;
+
+//-valeur consigne--//
+float Consigne = 5;
+
+//-Valeurs pour le correcteur
+float Kp = 0.02;
+float Ki = 0.00005;
+
+//-- variable liée aux différents correcteur PID --// 
+float Up_k = 0;        // facteur proportionnelle; 
+float Ui_k = 0;        // facteur intégrateur => actuel 
+float Ui_k_1 = 0;      // facteur intégrateur => passé 
+float Uk;              // facteur globale
+
+//-- variables pour représenter l'erreur entre la consigne et la position  
+float erreurk;          // représentant l'erreur actuel entre la position et la consigne 
+
+//variable d'attente si le courant est trop élevé 
+uint8_t OverCurent = 0;
+uint32_t Wait_AfterOverCurent = 0;
+//--variable modification du pwm--//
+ uint32_t Value_PWM = 0;
+ 
+ //tableau avec valeurs pour LED RGB
+// uint8_t Data_LEDs [Numer_of_LEDs][Couleurs_LEDs][Datas_LEDs];
+// uint32_t LED_Num;
+// uint32_t Color;
+// uint32_t Data;
+// uint32_t i;
+// uint32_t a;
 
 void APP_Initialize ( void )
 {
@@ -141,26 +185,91 @@ void APP_Tasks ( void )
         /* Application's initial state. */
         case APP_STATE_INIT:
         {
-            bool appInitialized = true;
-       
-        
-            if (appInitialized)
-            {
-            
-                appData.state = APP_STATE_SERVICE_TASKS;
-            }
+            BSP_InitADC10();
+            DRV_TMR0_Start();
+            DRV_OC0_Start();
+            UpdateAppState(APP_STATE_WAIT);
             break;
         }
 
         case APP_STATE_SERVICE_TASKS:
         {
-        
+            //activation du pin Enable du driver de gate
+            DRIVER_ENOn();
+            //temps pour relecture adc 
+            if (Temps_ADC <20)
+            {
+                Temps_ADC++;
+            }
+            else 
+            {
+                //lecture et calcul en tension des valeurs du courant et de la tension 
+                Value_ADC = BSP_ReadAllADC();
+                Courant = (((uint16_t)Value_ADC.Chan0 *3.3)/1024);
+                Tension = (((uint16_t)(Value_ADC.Chan1) *3.3)/1024)*2;
+                Temps_ADC = 0;
+                
+            }
+            //vérification overcurent
+            if (Courant > Courant_Max)
+            {
+                OverCurent = 1;
+            }
+            
+            if(OverCurent == 0)
+            {
+                //calcul erreur 
+                erreurk = Consigne- Tension;
+
+                 //-- proportionnel --//
+                Up_k = Kp * erreurk; 
+
+                //-- intégrateur --// 
+                Ui_k = Ki * erreurk + Ui_k_1;
+
+                //
+                if(Ui_k > 100)
+                Ui_k = 100;
+
+                if(Ui_k<0)
+                Ui_k = 0;
+
+                //Calcul de Uk
+                Uk = Up_k + Ui_k ; 
+
+                //calcul puis changement du pwm 
+                Value_PWM = Uk * 2180;
+                //envoi de la valeur calculée sur l'OC
+                DRV_OC0_PulseWidthSet(Value_PWM);
+                //mémoir de Ui_k
+                Ui_k_1 = Ui_k;
+
+                //envoi de LED non fonctionnel
+                //SendDataLed(Data_LEDs);
+            }
+            else
+            {  
+                DRV_OC0_PulseWidthSet(0);
+                //géstion du temps d'attente overcurent
+                if(Wait_AfterOverCurent < Time_Overcurent_Wait)
+                {
+                    Wait_AfterOverCurent++;
+                }
+                else
+                {
+                    Wait_AfterOverCurent = 0;
+                    OverCurent = 0;
+                }
+            }
+            
+            //va dans l'état attente
+            UpdateAppState(APP_STATE_WAIT);
             break;
         }
-
-        /* TODO: implement your application state machine.*/
-        
-
+        case APP_STATE_WAIT :
+        {
+            //état attente rien ne se passe --> attend intéruption OC pour continuer
+        }  
         /* The default state should never be executed. */
         default:
         {
@@ -169,9 +278,37 @@ void APP_Tasks ( void )
         }
     }
 }
+void UpdateAppState(APP_STATES newState)
+{
+    appData.state = newState;
+}
 
- 
-
+//void SendDataLed(uint8_t Data_LED[Numer_of_LEDs] [Couleurs_LEDs] [Datas_LEDs])
+//{
+//   
+//    i2c_start();
+//    for(LED_Num = 0; LED_Num< 8;LED_Num ++)
+//    {
+//        for ( Color =0;Color<3;Color++)
+//        {
+//          for( Data = 0;Data<8;Data++)
+//          {
+//              if (Data_LED[LED_Num][Color][Data] != 0 )
+//              {
+//                  i2c_write (LED_ON);
+//              }
+//              else
+//              {
+//                  i2c_write(LED_OFF);
+//              }
+//            
+//          }
+//        }
+//    }
+//    i2c_stop();
+//
+//    
+//}
 /*******************************************************************************
  End of File
  */
