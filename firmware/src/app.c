@@ -268,7 +268,7 @@ void APP_Tasks ( void )
                 }
             }
             
-            //va dans l'état attente
+            // Va dans l'état attente
             UpdateAppState(APP_STATE_WAIT);
             break;
         }
@@ -293,11 +293,11 @@ void UpdateAppState(APP_STATES newState)
 //{
 //   
 //    i2c_start();
-//    for(LED_Num = 0; LED_Num< 8;LED_Num ++)
+//    for(LED_Num = 0; LED_Num < Numer_of_LEDs;LED_Num ++)
 //    {
-//        for ( Color =0;Color<3;Color++)
+//        for ( Color =0;Color < Couleurs_LEDs; Color++)
 //        {
-//          for( Data = 0;Data<8;Data++)
+//          for( Data = 0;Data < Datas_LEDs;Data++)
 //          {
 //              if (Data_LED[LED_Num][Color][Data] != 0 )
 //              {
