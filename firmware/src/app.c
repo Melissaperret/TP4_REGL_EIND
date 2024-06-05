@@ -112,22 +112,29 @@ APP_DATA appData;
   Remarks:
     See prototype in app.h.
  */
-#define Courant_Max 0.8
-#define Time_Overcurent_Wait 0x35B60
+#define COURANT_MAX 0.8
+#define TIME_OVERCURRENT_WAIT 0x35B60 //
+#define VINGT 20
+#define TENSION_ENTREE 3.3
+#define VALEUR_MAX_ADC 1024
+#define DEUX 2
+#define MAX_OVERSHOOT 100
+#define MIN_OVERSHOOT 0
+#define VAL_PWM_MAX 2180
 
 //Variable globale 
 
 //mesures pour adc 
-float Tension = 0;
-float Courant = 0;
-float Tension_Mem [3];
+float tension = 0;
+float courant = 0;
+float tension_Mem [3];
 
 //atente pour adc
-uint32_t Temps_ADC = 22;
+uint32_t temps_ADC = 22;
 S_ADCResults Value_ADC;
 
 //-valeur consigne--//
-float Consigne = 5;
+float consigne = 5;
 
 //-Valeurs pour le correcteur
 float Kp = 0.02;
@@ -143,10 +150,10 @@ float Uk;              // facteur globale
 float erreurk;          // représentant l'erreur actuel entre la position et la consigne 
 
 //variable d'attente si le courant est trop élevé 
-uint8_t OverCurent = 0;
-uint32_t Wait_AfterOverCurent = 0;
+uint8_t overCurent = 0;
+uint32_t wait_AfteroverCurent = 0;
 //--variable modification du pwm--//
- uint32_t Value_PWM = 0;
+ uint32_t value_PWM = 0;
  
  //tableau avec valeurs pour LED RGB
 // uint8_t Data_LEDs [Numer_of_LEDs][Couleurs_LEDs][Datas_LEDs];
@@ -185,80 +192,79 @@ void APP_Tasks ( void )
         /* Application's initial state. */
         case APP_STATE_INIT:
         {
-            BSP_InitADC10();
-            DRV_TMR0_Start();
-            DRV_OC0_Start();
+            BSP_InitADC10();    // Initialisation de l'ADC
+            DRV_TMR0_Start();   // Initialisation Timer1
+            DRV_OC0_Start();    // Initialisation OC1
             UpdateAppState(APP_STATE_WAIT);
             break;
         }
 
         case APP_STATE_SERVICE_TASKS:
         {
-            //activation du pin Enable du driver de gate
+            // Activation du pin Enable du driver de gate
             DRIVER_ENOn();
-            //temps pour relecture adc 
-            if (Temps_ADC <20)
+            // Temps pour relecture adc 
+            if (temps_ADC < VINGT)
             {
-                Temps_ADC++;
+                temps_ADC++;  
             }
             else 
             {
-                //lecture et calcul en tension des valeurs du courant et de la tension 
-                Value_ADC = BSP_ReadAllADC();
-                Courant = (((uint16_t)Value_ADC.Chan0 *3.3)/1024);
-                Tension = (((uint16_t)(Value_ADC.Chan1) *3.3)/1024)*2;
-                Temps_ADC = 0;
-                
+                // Lecture et calcul en tension des valeurs du courant et de la tension 
+                Value_ADC = BSP_ReadAllADC();  
+                courant = (((uint16_t)Value_ADC.Chan0 *TENSION_ENTREE)/VALEUR_MAX_ADC);  // Lis le courant de sortie (Iout) et calcul en tension 
+                tension = (((uint16_t)(Value_ADC.Chan1) *TENSION_ENTREE)/VALEUR_MAX_ADC)*DEUX; // Lis le courant de sortie (Vout), on fait fois 2 car il y a le pont diviseur avant 
+                temps_ADC = 0;
             }
-            //vérification overcurent
-            if (Courant > Courant_Max)
+            // Vérification overcurrent
+            if (courant > COURANT_MAX)
             {
-                OverCurent = 1;
+                overCurent = 1;
             }
             
-            if(OverCurent == 0)
+            if(overCurent == 0)
             {
-                //calcul erreur 
-                erreurk = Consigne- Tension;
+                // Calcul erreur 
+                erreurk = consigne- tension;
 
-                 //-- proportionnel --//
+                 //-- Proportionnel --//
                 Up_k = Kp * erreurk; 
 
-                //-- intégrateur --// 
+                //-- Intégrateur --// 
                 Ui_k = Ki * erreurk + Ui_k_1;
 
-                //
-                if(Ui_k > 100)
-                Ui_k = 100;
+                // Pour limiter l'overshoot
+                if(Ui_k > MAX_OVERSHOOT)
+                Ui_k = MAX_OVERSHOOT;
 
-                if(Ui_k<0)
-                Ui_k = 0;
+                if(Ui_k < MIN_OVERSHOOT)
+                Ui_k = MIN_OVERSHOOT;
 
                 //Calcul de Uk
                 Uk = Up_k + Ui_k ; 
 
-                //calcul puis changement du pwm 
-                Value_PWM = Uk * 2180;
-                //envoi de la valeur calculée sur l'OC
-                DRV_OC0_PulseWidthSet(Value_PWM);
-                //mémoir de Ui_k
+                // Calcul puis changement du pwm 
+                value_PWM = Uk * VAL_PWM_MAX;
+                // Envoi de la valeur calculée sur l'OC
+                DRV_OC0_PulseWidthSet(value_PWM);
+                // Mémoire de Ui_k
                 Ui_k_1 = Ui_k;
 
-                //envoi de LED non fonctionnel
-                //SendDataLed(Data_LEDs);
+                // Envoi de LED non fonctionnel
+                // SendDataLed(Data_LEDs);
             }
             else
             {  
                 DRV_OC0_PulseWidthSet(0);
-                //géstion du temps d'attente overcurent
-                if(Wait_AfterOverCurent < Time_Overcurent_Wait)
+                // Gestion du temps d'attente overcurrent
+                if(wait_AfteroverCurent < TIME_OVERCURRENT_WAIT)
                 {
-                    Wait_AfterOverCurent++;
+                    wait_AfteroverCurent++;
                 }
                 else
                 {
-                    Wait_AfterOverCurent = 0;
-                    OverCurent = 0;
+                    wait_AfteroverCurent = 0;
+                    overCurent = 0;
                 }
             }
             
